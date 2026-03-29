@@ -1,0 +1,7 @@
+winmon was developed with reference to macmon:
+https://github.com/vladkens/macmon
+
+Upstream project license:
+MIT
+
+See MACMON-MIT.txt in the same directory for the bundled license text.

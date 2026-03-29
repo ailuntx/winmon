@@ -1,0 +1,13 @@
+OpenHardwareMonitor_x64.exe in this package comes from:
+https://github.com/HardwareMonitor/openhardwaremonitor/releases
+
+Upstream repository:
+https://github.com/HardwareMonitor/openhardwaremonitor
+
+winmon does not modify this executable.
+
+Upstream README notes:
+- some sensors may require administrator privileges
+- antivirus false positives are possible on some systems
+
+See GPL-3.0.txt in the same directory for the bundled license text.

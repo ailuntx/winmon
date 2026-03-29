@@ -1,0 +1,52 @@
+name: check
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'
+    paths:
+      - .github/workflows/*.yml
+      - .cargo/**
+      - Cargo.toml
+      - Cargo.lock
+      - LICENSE
+      - README.md
+      - DEVELOPMENT.md
+      - install.ps1
+      - run.ps1
+      - src/**
+      - scripts/**
+      - third_party/licenses/**
+      - third_party/ohm/OpenHardwareMonitor_x64.exe
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo fmt --check
+      - run: cargo check --release --locked
+      - run: cargo build --release --locked
+
+      - name: install script dry run
+        shell: pwsh
+        run: ./install.ps1 -Repo example/winmon -DryRun
+
+      - name: package
+        shell: pwsh
+        run: ./scripts/package.ps1 -Version $env:GITHUB_SHA -TargetDir target
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winmon-windows-x64
+          path: dist/*.zip
+          retention-days: 7
