@@ -66,4 +66,4 @@ release 包由 `scripts/package.ps1` 生成：
 注意两点：
 
 - 正式提交到 `microsoft/winget-pkgs` 之前，安装包链接必须公开可访问
-- 现在仓库是私有的，所以当前 manifest 只能作为准备文件，不能直接提交社区仓库
+- schema 版本跟着社区要求走，当前默认生成 `1.12.0`

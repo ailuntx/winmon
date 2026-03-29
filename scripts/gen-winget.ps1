@@ -10,7 +10,7 @@ param(
   [string]$Publisher = "ailuntz",
   [string]$PackageName = "winmon",
   [string]$Moniker = "winmon",
-  [string]$ManifestVersion = "1.9.0",
+  [string]$ManifestVersion = "1.12.0",
   [string]$OutRoot = "winget/manifests"
 )
 
