@@ -30,6 +30,8 @@ winmon
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/ailuntz/winmon/releases/latest/download/install.ps1 | iex"
 ```
 
+`winget` 清单已经准备好了，但正式提交到社区仓库前，当前仓库需要先公开。
+
 ## 说明
 
 - 颜色、视图模式、刷新间隔保存在 `%APPDATA%\winmon\config.json`

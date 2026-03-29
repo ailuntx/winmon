@@ -18,6 +18,7 @@ on:
       - run.ps1
       - src/**
       - scripts/**
+      - winget/**
       - third_party/licenses/**
       - third_party/ohm/OpenHardwareMonitor_x64.exe
 
@@ -40,6 +41,10 @@ jobs:
       - name: install script dry run
         shell: pwsh
         run: ./install.ps1 -Repo example/winmon -DryRun
+
+      - name: winget manifest dry run
+        shell: pwsh
+        run: ./scripts/gen-winget.ps1 -Version 0.0.0 -InstallerSha256 0000000000000000000000000000000000000000000000000000000000000000 -OutRoot tmp/winget
 
       - name: package
         shell: pwsh

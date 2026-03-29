@@ -52,3 +52,18 @@ release 包由 `scripts/package.ps1` 生成：
 - `.github/workflows/release.yml`
 - `install.ps1`
 - `scripts/package.ps1`
+
+## winget
+
+仓库里已经放了一份 `v0.1.0` 的 `winget` manifest，路径在 `winget/manifests/a/Ailuntz/Winmon/0.1.0/`。
+
+后续发新版时可以直接用：
+
+```powershell
+.\scripts\gen-winget.ps1 -Version 0.1.0 -InstallerSha256 <sha256>
+```
+
+注意两点：
+
+- 正式提交到 `microsoft/winget-pkgs` 之前，安装包链接必须公开可访问
+- 现在仓库是私有的，所以当前 manifest 只能作为准备文件，不能直接提交社区仓库
