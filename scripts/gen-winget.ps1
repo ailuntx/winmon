@@ -63,8 +63,8 @@ PackageName: $PackageName
 PackageUrl: $repoUrl
 License: GPL-3.0-only
 LicenseUrl: $licenseUrl
-ShortDescription: Windows terminal monitor for Intel CPU and NVIDIA GPU
-Description: Terminal monitor for Windows focused on Intel CPU and NVIDIA discrete GPU. Starts a TUI by default and also supports pipe and debug modes.
+ShortDescription: Windows terminal hardware monitor for Intel CPU and NVIDIA GPU
+Description: Terminal hardware monitor for Windows focused on Intel CPU and NVIDIA discrete GPU. Starts a TUI by default and also supports pipe and debug modes.
 Moniker: $Moniker
 Tags:
 - monitor
