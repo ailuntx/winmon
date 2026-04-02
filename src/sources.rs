@@ -6,19 +6,13 @@ use std::error::Error;
 #[cfg(windows)]
 use std::mem::size_of;
 #[cfg(windows)]
-use std::os::windows::process::CommandExt;
-#[cfg(windows)]
-use std::path::{Path, PathBuf};
-#[cfg(windows)]
-use std::process::{Child, Command};
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 #[cfg(windows)]
 use std::time::Duration;
 
 #[cfg(windows)]
-const EMBEDDED_OHM_EXE: &[u8] = include_bytes!("../third_party/ohm/OpenHardwareMonitor_x64.exe");
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+const EMBEDDED_OHM_DLL: &[u8] = include_bytes!("../third_party/ohm/OpenHardwareMonitorLib.dll");
 
 pub type WithError<T> = Result<T, Box<dyn Error>>;
 
@@ -97,27 +91,6 @@ struct SlowCache {
     swap_used_bytes: u64,
     cpu_power_w: Option<f32>,
     sys_power_w: Option<f32>,
-}
-
-#[cfg(windows)]
-#[derive(Debug, Default, Deserialize)]
-struct OhmState {
-    ready: bool,
-    running: bool,
-}
-
-#[cfg(windows)]
-#[derive(Debug)]
-struct OhmGuard {
-    child: Child,
-}
-
-#[cfg(windows)]
-impl Drop for OhmGuard {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
 }
 
 impl Snapshot {
@@ -285,7 +258,52 @@ $pCpuUsage = $null
 $pCpuFreq = $null
 
 function Get-OhmSensors {
-  Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue
+  $dllCandidates = @(
+    (if ($env:WINMON_STABLE_DIR) { Join-Path $env:WINMON_STABLE_DIR 'third_party\ohm\OpenHardwareMonitorLib.dll' } else { $null }),
+    (if ($env:WINMON_EXE_DIR) { Join-Path $env:WINMON_EXE_DIR 'third_party\ohm\OpenHardwareMonitorLib.dll' } else { $null }),
+    (Join-Path (Get-Location) 'third_party\ohm\OpenHardwareMonitorLib.dll')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+
+  $dll = $dllCandidates | Select-Object -First 1
+  if (-not $dll) {
+    return $null
+  }
+
+  $computer = $null
+  try {
+    $null = [System.Reflection.Assembly]::LoadFrom($dll)
+    $computer = New-Object OpenHardwareMonitor.Hardware.Computer
+    $computer.IsCpuEnabled = $true
+    $computer.Open($false)
+
+    $cpuHardware = @($computer.Hardware | Where-Object {
+      $_.HardwareType -eq [OpenHardwareMonitor.Hardware.HardwareType]::Cpu
+    })
+
+    foreach ($hardware in $cpuHardware) {
+      $hardware.Update()
+    }
+
+    return @(
+      foreach ($hardware in $cpuHardware) {
+        foreach ($sensor in $hardware.Sensors) {
+          if ($null -ne $sensor.Value) {
+            [pscustomobject]@{
+              SensorType = [string]$sensor.SensorType
+              Name = [string]$sensor.Name
+              Value = [double]$sensor.Value
+            }
+          }
+        }
+      }
+    )
+  } catch {
+    return $null
+  } finally {
+    if ($computer) {
+      $computer.Close()
+    }
+  }
 }
 
 function Get-OhmCpuTemp {
@@ -297,18 +315,14 @@ function Get-OhmCpuTemp {
 
   $sensor = $sensors |
     Where-Object {
-      $_.SensorType -eq 'Temperature' -and
-      $_.Parent -match '^/intelcpu/' -and
-      $_.Name -eq 'CPU Package'
+      $_.SensorType -eq 'Temperature' -and $_.Name -eq 'CPU Package'
     } |
     Select-Object -First 1
 
   if (-not $sensor) {
     $sensor = $sensors |
       Where-Object {
-        $_.SensorType -eq 'Temperature' -and
-        $_.Parent -match '^/intelcpu/' -and
-        ($_.Name -eq 'Core Max' -or $_.Name -eq 'Core Average')
+        $_.SensorType -eq 'Temperature' -and ($_.Name -eq 'Core Max' -or $_.Name -eq 'Core Average')
       } |
       Sort-Object Name |
       Select-Object -First 1
@@ -328,13 +342,8 @@ function Get-OhmHybridCpu {
     return $null
   }
 
-  $cpuSensors = $sensors | Where-Object { $_.Parent -match '^/intelcpu/' }
-  if (-not $cpuSensors) {
-    return $null
-  }
-
-  $clockSensors = $cpuSensors | Where-Object { $_.SensorType -eq 'Clock' }
-  $loadSensors = $cpuSensors | Where-Object { $_.SensorType -eq 'Load' }
+  $clockSensors = $sensors | Where-Object { $_.SensorType -eq 'Clock' }
+  $loadSensors = $sensors | Where-Object { $_.SensorType -eq 'Load' }
   $totalLoad = $loadSensors | Where-Object { $_.Name -eq 'Total' -and $null -ne $_.Value } | Select-Object -First 1
 
   $pFreqValues = @($clockSensors | Where-Object { $_.Name -match '^P-Core #' -and $null -ne $_.Value } | ForEach-Object { [double]$_.Value })
@@ -414,17 +423,6 @@ if ($smi) {
 "#;
 
 #[cfg(windows)]
-const OHM_STATE_SCRIPT: &str = r#"
-$sensors = Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue
-$running = @(Get-Process OpenHardwareMonitor* -ErrorAction SilentlyContinue).Count -gt 0
-
-[pscustomobject]@{
-  ready = [bool]$sensors
-  running = [bool]$running
-} | ConvertTo-Json -Compress
-"#;
-
-#[cfg(windows)]
 const SLOW_SCRIPT: &str = r#"
 $swapUsedBytes = 0
 $cpuPower = $null
@@ -480,8 +478,6 @@ pub struct Sampler {
     ram_total_bytes: u64,
     swap_total_bytes: u64,
     slow_cache: Arc<RwLock<SlowCache>>,
-    #[cfg(windows)]
-    ohm_guard: Option<OhmGuard>,
 }
 
 impl Sampler {
@@ -502,8 +498,6 @@ impl Sampler {
             ram_total_bytes: memory.ram_total_bytes,
             swap_total_bytes: memory.swap_total_bytes,
             slow_cache,
-            #[cfg(windows)]
-            ohm_guard: ensure_ohm_running().unwrap_or_default(),
         })
     }
 
@@ -511,13 +505,7 @@ impl Sampler {
         #[cfg(windows)]
         {
             let envs = winmon_runtime_envs();
-            let mut fast: FastSnapshot = run_powershell_json_with_env(FAST_SCRIPT, &envs)?;
-            if fast_snapshot_needs_ohm(&fast) {
-                if self.ohm_guard.is_none() {
-                    self.ohm_guard = ensure_ohm_running().unwrap_or_default();
-                }
-                fast = run_powershell_json_with_env(FAST_SCRIPT, &envs)?;
-            }
+            let fast: FastSnapshot = run_powershell_json_with_env(FAST_SCRIPT, &envs)?;
             let ram_used_bytes = load_ram_used_bytes()?;
             let slow = *self.slow_cache.read().unwrap();
             let sample = Snapshot {
@@ -585,8 +573,8 @@ fn bootstrap_runtime_assets_windows() -> WithError<()> {
     let stable_ohm = stable_dir
         .join("third_party")
         .join("ohm")
-        .join("OpenHardwareMonitor_x64.exe");
-    write_embedded_file_if_needed(EMBEDDED_OHM_EXE, &stable_ohm)?;
+        .join("OpenHardwareMonitorLib.dll");
+    write_embedded_file_if_needed(EMBEDDED_OHM_DLL, &stable_ohm)?;
 
     if std::env::var_os("WINMON_SKIP_USER_PATH").is_none() {
         ensure_user_path_contains(&stable_dir)?;
@@ -621,123 +609,6 @@ fn winmon_runtime_envs() -> Vec<(&'static str, String)> {
         envs.push(("WINMON_EXE_DIR", dir.to_string_lossy().into_owned()));
     }
     envs
-}
-
-#[cfg(windows)]
-fn fast_snapshot_needs_ohm(fast: &FastSnapshot) -> bool {
-    fast.cpu_temp_c.is_none()
-        && fast.cpu_freq_mhz == 0
-        && fast.e_cpu_freq_mhz.is_none()
-        && fast.p_cpu_freq_mhz.is_none()
-}
-
-#[cfg(windows)]
-fn ohm_debug(message: impl AsRef<str>) {
-    if std::env::var_os("WINMON_DEBUG_OHM").is_some() {
-        eprintln!("[winmon][ohm] {}", message.as_ref());
-    }
-}
-
-#[cfg(windows)]
-fn ensure_ohm_running() -> WithError<Option<OhmGuard>> {
-    let envs = winmon_runtime_envs();
-    let state = load_ohm_state(&envs).unwrap_or_default();
-    ohm_debug(format!(
-        "state ready={} running={}",
-        state.ready, state.running
-    ));
-    if state.ready {
-        return Ok(None);
-    }
-
-    if state.running {
-        wait_for_ohm_ready(&envs, Duration::from_secs(3));
-        return Ok(None);
-    }
-
-    let Some(ohm_exe) = find_ohm_exe_path() else {
-        ohm_debug("ohm exe not found");
-        return Ok(None);
-    };
-    ohm_debug(format!("start {}", ohm_exe.display()));
-
-    let mut command = Command::new(&ohm_exe);
-    if let Some(parent) = ohm_exe.parent() {
-        command.current_dir(parent);
-    }
-    command.creation_flags(CREATE_NO_WINDOW);
-    let child = match command.spawn() {
-        Ok(child) => child,
-        Err(err) => {
-            ohm_debug(format!("spawn failed: {err}"));
-            return Err(err.into());
-        }
-    };
-    wait_for_ohm_ready(&envs, Duration::from_secs(3));
-    let state = load_ohm_state(&envs).unwrap_or_default();
-    ohm_debug(format!(
-        "after start ready={} running={}",
-        state.ready, state.running
-    ));
-    Ok(Some(OhmGuard { child }))
-}
-
-#[cfg(windows)]
-fn find_ohm_exe_path() -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-
-    if let Some(dir) = winmon_stable_dir() {
-        candidates.push(
-            dir.join("third_party")
-                .join("ohm")
-                .join("OpenHardwareMonitor_x64.exe"),
-        );
-        candidates.push(
-            dir.join("third_party")
-                .join("ohm")
-                .join("OpenHardwareMonitor.exe"),
-        );
-    }
-
-    if let Some(dir) = current_exe_dir() {
-        candidates.push(
-            dir.join("third_party")
-                .join("ohm")
-                .join("OpenHardwareMonitor_x64.exe"),
-        );
-        candidates.push(
-            dir.join("third_party")
-                .join("ohm")
-                .join("OpenHardwareMonitor.exe"),
-        );
-        candidates.push(dir.join("OpenHardwareMonitor_x64.exe"));
-        candidates.push(dir.join("OpenHardwareMonitor.exe"));
-    }
-
-    candidates.push(
-        Path::new("C:\\Program Files\\OpenHardwareMonitor").join("OpenHardwareMonitor_x64.exe"),
-    );
-    candidates.push(
-        Path::new("C:\\Program Files\\OpenHardwareMonitor").join("OpenHardwareMonitor.exe"),
-    );
-
-    candidates.into_iter().find(|path| path.exists())
-}
-
-#[cfg(windows)]
-fn load_ohm_state(envs: &[(&str, String)]) -> WithError<OhmState> {
-    run_powershell_json_with_env(OHM_STATE_SCRIPT, envs)
-}
-
-#[cfg(windows)]
-fn wait_for_ohm_ready(envs: &[(&str, String)], timeout: Duration) {
-    let started = std::time::Instant::now();
-    while started.elapsed() < timeout {
-        if load_ohm_state(envs).map(|state| state.ready).unwrap_or(false) {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(200));
-    }
 }
 
 #[cfg(windows)]
