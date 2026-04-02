@@ -22,6 +22,23 @@ function Invoke-WinmonRequest {
     [string]$OutFile
   )
 
+  $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+  if ($curl) {
+    $args = @("-L", "--fail", "--silent", "--show-error", $Uri)
+    if ($OutFile) {
+      $args += @("-o", $OutFile)
+    }
+    & $curl.Source @args
+    if ($LASTEXITCODE -ne 0) {
+      throw "download failed: $Uri"
+    }
+    return
+  }
+
+  if ($PSVersionTable.PSVersion.Major -lt 6) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  }
+
   $params = @{ Uri = $Uri }
   if ($PSVersionTable.PSVersion.Major -lt 6) {
     $params.UseBasicParsing = $true
@@ -29,7 +46,6 @@ function Invoke-WinmonRequest {
   if ($OutFile) {
     $params.OutFile = $OutFile
   }
-
   Invoke-WebRequest @params
 }
 

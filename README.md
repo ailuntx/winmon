@@ -35,7 +35,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $p
 如果当前是在 `cmd` 里，或者是从 macOS 用 `ssh win` 连进去，直接用这两条：
 
 ```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest 'https://github.com/ailuntz/winmon/releases/latest/download/install.ps1' -UseBasicParsing -OutFile '$env:TEMP\\winmon-install.ps1'"
+curl.exe -L --fail --silent --show-error "https://github.com/ailuntz/winmon/releases/latest/download/install.ps1" -o "%TEMP%\winmon-install.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\winmon-install.ps1"
 ```
 
