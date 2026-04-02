@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 const GB: u64 = 1024 * 1024 * 1024;
 const MAX_SPARKLINE: usize = 128;
 const MAX_TEMPS: usize = 8;
+const MAX_REASONABLE_TEMP_C: f32 = 150.0;
+const MAX_TEMP_DELTA_C: f32 = 20.0;
 
 fn enter_term() -> Terminal<CrosstermBackend<std::io::Stdout>> {
     std::panic::set_hook(Box::new(|info| {
@@ -116,12 +118,40 @@ impl TempStore {
     }
 
     fn push(&mut self, value: Option<f32>) {
-        let Some(value) = value else {
-            return;
+        let mut value = match value {
+            Some(value) if value.is_finite() && value > 0.0 && value <= MAX_REASONABLE_TEMP_C => {
+                value
+            }
+            _ => match self.trend_ema(0.8) {
+                Some(value) => value,
+                None => return,
+            },
         };
 
-        self.items.insert(0, value);
+        if let Some(last) = self.last() {
+            let delta = value - last;
+            if delta.abs() > MAX_TEMP_DELTA_C {
+                value = last + delta.signum() * (MAX_TEMP_DELTA_C * 0.35);
+            } else {
+                value = last * 0.35 + value * 0.65;
+            }
+        }
+
+        self.items.insert(0, value.max(0.0));
         self.items.truncate(MAX_TEMPS);
+    }
+
+    fn trend_ema(&self, alpha: f32) -> Option<f32> {
+        if self.items.is_empty() {
+            return None;
+        }
+
+        let mut iter = self.items.iter().rev();
+        let mut ema = *iter.next()?;
+        for &item in iter {
+            ema = alpha * item + (1.0 - alpha) * ema;
+        }
+        Some(ema)
     }
 }
 
@@ -308,8 +338,12 @@ impl App {
         let ram_total_gb = self.mem.ram_total as f64 / GB as f64;
         let swap_usage_gb = self.mem.swap_usage as f64 / GB as f64;
         let swap_total_gb = self.mem.swap_total as f64 / GB as f64;
+        let ram_usage_pct = zero_div(ram_usage_gb, ram_total_gb.max(0.0001)) * 100.0;
 
-        let label_l = format!("RAM {:4.2} / {:4.1} GB", ram_usage_gb, ram_total_gb);
+        let label_l = format!(
+            "RAM {:4.2} / {:4.1} GB ({:.1}%)",
+            ram_usage_gb, ram_total_gb, ram_usage_pct
+        );
         let label_r = format!("SWAP {:.2} / {:.1} GB", swap_usage_gb, swap_total_gb);
         let block = self.title_block(&label_l, &label_r);
 

@@ -12,6 +12,7 @@
 winmon
 winmon pipe -s 1 --device-info
 winmon debug
+winmon serve
 ```
 
 ## 安装
@@ -40,6 +41,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\winmon-install.ps1"
 ```
 
 `winget` 清单已经准备好了，可以继续往社区仓库提 PR。
+
+## serve
+
+可以通过 HTTP 暴露当前指标：
+
+```powershell
+winmon serve
+winmon serve --port 9090
+```
+
+可用端点：
+
+- `GET /json`
+- `GET /metrics`
+
+仓库里也放了一个 [example-grafana](/Volumes/usb_main/usb_main/test_bug/winmon/example-grafana) 目录，方便直接接 Prometheus / Grafana。
 
 ## 说明
 

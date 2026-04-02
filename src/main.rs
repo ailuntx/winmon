@@ -1,11 +1,13 @@
 mod app;
 mod config;
 mod metrics;
+mod serve;
 mod sources;
 
 use app::App;
 use clap::{CommandFactory, Parser, Subcommand, parser::ValueSource};
 use sources::{Sampler, WithError, bootstrap_runtime_assets, load_device_info};
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Subcommand)]
 enum Commands {
@@ -23,6 +25,13 @@ enum Commands {
 
     /// 打印一次调试信息
     Debug,
+
+    /// 通过 HTTP 暴露 JSON 和 Prometheus 指标
+    Serve {
+        /// 监听端口
+        #[arg(short, long, default_value_t = 9090)]
+        port: u16,
+    },
 
     #[command(hide = true)]
     Bootstrap,
@@ -84,6 +93,34 @@ fn debug_mode(interval: u32) -> WithError<()> {
     Ok(())
 }
 
+fn serve_mode(interval: u32, port: u16) -> WithError<()> {
+    let mut sampler = Sampler::new()?;
+    let device = Arc::new(sampler.get_device_info().clone());
+    let shared: serve::SharedMetrics = Arc::new(RwLock::new(None));
+
+    {
+        let shared_http = Arc::clone(&shared);
+        let device_http = Arc::clone(&device);
+        std::thread::spawn(move || {
+            if let Err(err) = serve::run(port, shared_http, device_http) {
+                eprintln!("server error: {err}");
+            }
+        });
+    }
+
+    loop {
+        let started = std::time::Instant::now();
+        let metrics = sampler.get_metrics()?;
+        *shared.write().unwrap() = Some(metrics);
+
+        let target = std::time::Duration::from_millis(interval.max(500) as u64);
+        let elapsed = started.elapsed();
+        if elapsed < target {
+            std::thread::sleep(target - elapsed);
+        }
+    }
+}
+
 fn main() -> WithError<()> {
     let args = Cli::parse();
     bootstrap_runtime_assets();
@@ -94,6 +131,7 @@ fn main() -> WithError<()> {
             device_info,
         }) => pipe_mode(args.interval, samples, device_info),
         Some(Commands::Debug) => debug_mode(args.interval),
+        Some(Commands::Serve { port }) => serve_mode(args.interval, port),
         Some(Commands::Bootstrap) => Ok(()),
         None => {
             let mut app = App::new()?;

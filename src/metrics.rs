@@ -30,6 +30,7 @@ pub struct Metrics {
     pub cpu_usage: (u32, f32),
     pub e_cpu_usage: (u32, f32),
     pub p_cpu_usage: (u32, f32),
+    pub cpu_usage_pct: f32,
     pub gpu_usage: (u32, f32),
 }
 

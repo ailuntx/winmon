@@ -1,4 +1,4 @@
-use crate::metrics::{MemMetrics, Metrics, PowerMetrics, TempMetrics};
+use crate::metrics::{MemMetrics, Metrics, PowerMetrics, TempMetrics, zero_div};
 #[cfg(windows)]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -94,12 +94,30 @@ struct SlowCache {
 }
 
 impl Snapshot {
-    fn into_metrics(self) -> Metrics {
+    fn into_metrics(self, device: &DeviceInfo) -> Metrics {
         let cpu_temp = normalize_value(self.cpu_temp_c);
         let gpu_temp = normalize_value(self.gpu_temp_c);
         let cpu_power = normalize_value(self.cpu_power_w);
         let gpu_power = normalize_value(self.gpu_power_w);
         let sys_power = normalize_value(self.sys_power_w);
+        let cpu_usage_pct = normalize_ratio(self.cpu_usage_percent);
+        let e_cpu_usage_pct = normalize_ratio(self.e_cpu_usage_percent.unwrap_or_default());
+        let p_cpu_usage_pct = normalize_ratio(self.p_cpu_usage_percent.unwrap_or_default());
+
+        let combined_cpu_usage_pct = match (device.cpu_p_cores, device.cpu_e_cores) {
+            (Some(p_cores), Some(e_cores)) if p_cores + e_cores > 0 => {
+                let total = (p_cores + e_cores) as f32;
+                let weighted =
+                    p_cpu_usage_pct * p_cores as f32 + e_cpu_usage_pct * e_cores as f32;
+                let combined = zero_div(weighted, total);
+                if combined > 0.0 {
+                    combined
+                } else {
+                    cpu_usage_pct
+                }
+            }
+            _ => cpu_usage_pct,
+        };
 
         let tracked_power = match (cpu_power, gpu_power) {
             (Some(cpu), Some(gpu)) => Some(cpu + gpu),
@@ -128,16 +146,17 @@ impl Snapshot {
                 } else {
                     self.cpu_base_freq_mhz
                 },
-                normalize_ratio(self.cpu_usage_percent),
+                cpu_usage_pct,
             ),
             e_cpu_usage: (
                 self.e_cpu_freq_mhz.unwrap_or_default(),
-                normalize_ratio(self.e_cpu_usage_percent.unwrap_or_default()),
+                e_cpu_usage_pct,
             ),
             p_cpu_usage: (
                 self.p_cpu_freq_mhz.unwrap_or_default(),
-                normalize_ratio(self.p_cpu_usage_percent.unwrap_or_default()),
+                p_cpu_usage_pct,
             ),
+            cpu_usage_pct: combined_cpu_usage_pct,
             gpu_usage: (
                 self.gpu_freq_mhz.unwrap_or_default(),
                 normalize_ratio(self.gpu_usage_percent.unwrap_or_default()),
@@ -528,7 +547,7 @@ impl Sampler {
                 gpu_power_w: fast.gpu_power_w,
                 sys_power_w: slow.sys_power_w,
             };
-            return Ok(sample.into_metrics());
+            return Ok(sample.into_metrics(&self.device));
         }
 
         #[cfg(not(windows))]
