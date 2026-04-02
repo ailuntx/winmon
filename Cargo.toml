@@ -3,7 +3,7 @@ name = "winmon"
 version = "0.1.1"
 edition = "2024"
 description = "Windows CLI monitor for Intel CPU and discrete GPU"
-license = "GPL-3.0-only"
+license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ailuntz/winmon"
 

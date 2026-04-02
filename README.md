@@ -50,6 +50,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\winmon-install.ps1"
 
 ## 许可证
 
-当前仓库按 `GPL-3.0-only` 发布。
+仓库自身代码按 `MIT` 发布。
 
-原因很简单：发布包里会分发 `OpenHardwareMonitor` 运行时，当前实现还会把它内嵌进 `winmon.exe`。`macmon` 相关参考和说明保留在 `third_party/licenses`。
+`third_party` 里的外部文件继续保留它们各自的许可证：
+
+- `OpenHardwareMonitorLib.dll` 按 `MPL-2.0`
+- 参考过的 `macmon` 说明和 `MIT` 文本保留在 `third_party/licenses`

@@ -10,6 +10,7 @@ $root = Split-Path $PSScriptRoot -Parent
 $releaseDir = Join-Path $root $TargetDir
 $releaseDir = Join-Path $releaseDir "release"
 $exe = Join-Path $releaseDir "winmon.exe"
+$repoLicense = Join-Path $root "LICENSE"
 $ohmNotice = Join-Path $root "third_party\licenses\OHM-NOTICE.txt"
 $mplText = Join-Path $root "third_party\licenses\MPL-2.0.txt"
 $macmonNotice = Join-Path $root "third_party\licenses\MACMON-NOTICE.txt"
@@ -21,6 +22,10 @@ $zipPath = Join-Path $distDir "$bundleName.zip"
 
 if (!(Test-Path $exe)) {
   throw "release binary not found: $exe"
+}
+
+if (!(Test-Path $repoLicense)) {
+  throw "repo license not found: $repoLicense"
 }
 
 if (!(Test-Path $ohmNotice)) {
@@ -46,6 +51,7 @@ New-Item -ItemType Directory -Force $stageDir | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $stageDir "third_party\licenses") | Out-Null
 
 Copy-Item $exe (Join-Path $stageDir "winmon.exe")
+Copy-Item $repoLicense (Join-Path $stageDir "LICENSE")
 Copy-Item $ohmNotice (Join-Path $stageDir "third_party\licenses\OHM-NOTICE.txt")
 Copy-Item $mplText (Join-Path $stageDir "third_party\licenses\MPL-2.0.txt")
 Copy-Item $macmonNotice (Join-Path $stageDir "third_party\licenses\MACMON-NOTICE.txt")

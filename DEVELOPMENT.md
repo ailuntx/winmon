@@ -12,7 +12,7 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1 debug
 powershell -ExecutionPolicy Bypass -File .\run.ps1 pipe -s 1 --device-info
 ```
 
-`run.ps1` 只给开发和构建用，不进最终发布包。
+`run.ps1` 只给开发和构建用，不进最终发布包。最终用户走 release zip 或 `install.ps1`。
 
 ## 打包
 
@@ -25,10 +25,11 @@ release 包由 `scripts/package.ps1` 生成：
 当前包里只放：
 
 - `winmon.exe`
+- `LICENSE`
 - `README.txt`
 - `third_party/licenses/*`
 
-`OHM` 不再作为外部运行时一起放在 zip 里，首次运行时由 `winmon.exe` 自己写到 `%APPDATA%\winmon\third_party\ohm`。
+`OHM` 不再带外部 exe。首次运行时由 `winmon.exe` 自己把内嵌的 `OpenHardwareMonitorLib.dll` 写到 `%APPDATA%\winmon\third_party\ohm`。
 
 ## 自举
 
@@ -39,6 +40,8 @@ release 包由 `scripts/package.ps1` 生成：
 - 把 `%APPDATA%\winmon` 写进用户 `PATH`
 
 安装脚本和发布流程都依赖这条链，所以不要随便绕开。
+
+`install.ps1` 现在优先用 `curl.exe` 下载 release 资产，避开 `Windows PowerShell 5.1` 下 `Invoke-WebRequest` 对 GitHub 链路不稳的问题。
 
 ## 发布
 
@@ -52,6 +55,15 @@ release 包由 `scripts/package.ps1` 生成：
 - `.github/workflows/release.yml`
 - `install.ps1`
 - `scripts/package.ps1`
+
+## 许可证
+
+仓库自身代码现在按 `MIT` 发布。
+
+注意区分：
+
+- 仓库根目录 `LICENSE` 只管 `winmon` 自己的代码
+- `third_party/licenses` 里保留外部依赖和参考项目的原始许可证文本
 
 ## winget
 

@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    ".github/workflows/*.yml": "yaml",
+    ".github/workflows/*.yaml": "yaml"
+  },
+  "github-actions.remote-name": "origin"
+}
