@@ -7,7 +7,9 @@ use crossterm::{
     terminal,
 };
 use ratatui::{backend::CrosstermBackend, prelude::*, widgets::*};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock, mpsc};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 const GB: u64 = 1024 * 1024 * 1024;
@@ -174,21 +176,34 @@ fn run_inputs_thread(tx: mpsc::Sender<Event>, tick: u64) {
     });
 }
 
-fn run_sampler_thread(tx: mpsc::Sender<Event>, msec: Arc<RwLock<u32>>) {
+fn run_sampler_thread(
+    tx: mpsc::Sender<Event>,
+    msec: Arc<RwLock<u32>>,
+    stop: Arc<AtomicBool>,
+) -> JoinHandle<()> {
     std::thread::spawn(move || {
-        let mut sampler = Sampler::new().unwrap();
-        loop {
+        let Ok(mut sampler) = Sampler::new() else {
+            return;
+        };
+
+        while !stop.load(Ordering::Relaxed) {
             let interval = (*msec.read().unwrap()).max(500) as u64;
             let started = Instant::now();
-            tx.send(Event::Update(sampler.get_metrics().unwrap()))
-                .unwrap();
+            if let Ok(metrics) = sampler.get_metrics() {
+                if tx.send(Event::Update(metrics)).is_err() {
+                    break;
+                }
+            }
             let elapsed = started.elapsed();
             let target = Duration::from_millis(interval);
-            if elapsed < target {
-                std::thread::sleep(target - elapsed);
+            let mut remaining = target.saturating_sub(elapsed);
+            while remaining > Duration::ZERO && !stop.load(Ordering::Relaxed) {
+                let chunk = remaining.min(Duration::from_millis(100));
+                std::thread::sleep(chunk);
+                remaining = remaining.saturating_sub(chunk);
             }
         }
-    });
+    })
 }
 
 fn avg2(a: f64, b: f64) -> f64 {
@@ -430,10 +445,11 @@ impl App {
     pub fn run_loop(&mut self, interval: Option<u32>) -> WithError<()> {
         self.cfg.interval = interval.unwrap_or(self.cfg.interval).clamp(500, 10_000);
         let msec = Arc::new(RwLock::new(self.cfg.interval));
+        let stop = Arc::new(AtomicBool::new(false));
 
         let (tx, rx) = mpsc::channel::<Event>();
         run_inputs_thread(tx.clone(), 250);
-        run_sampler_thread(tx, Arc::clone(&msec));
+        let sampler = run_sampler_thread(tx, Arc::clone(&msec), Arc::clone(&stop));
 
         let mut term = enter_term();
 
@@ -457,6 +473,8 @@ impl App {
             }
         }
 
+        stop.store(true, Ordering::Relaxed);
+        let _ = sampler.join();
         leave_term();
         Ok(())
     }

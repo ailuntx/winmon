@@ -6,13 +6,19 @@ use std::error::Error;
 #[cfg(windows)]
 use std::mem::size_of;
 #[cfg(windows)]
-use std::process::Command;
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::process::{Child, Command};
 use std::sync::{Arc, RwLock};
 #[cfg(windows)]
 use std::time::Duration;
 
 #[cfg(windows)]
 const EMBEDDED_OHM_EXE: &[u8] = include_bytes!("../third_party/ohm/OpenHardwareMonitor_x64.exe");
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub type WithError<T> = Result<T, Box<dyn Error>>;
 
@@ -91,6 +97,27 @@ struct SlowCache {
     swap_used_bytes: u64,
     cpu_power_w: Option<f32>,
     sys_power_w: Option<f32>,
+}
+
+#[cfg(windows)]
+#[derive(Debug, Default, Deserialize)]
+struct OhmState {
+    ready: bool,
+    running: bool,
+}
+
+#[cfg(windows)]
+#[derive(Debug)]
+struct OhmGuard {
+    child: Child,
+}
+
+#[cfg(windows)]
+impl Drop for OhmGuard {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }
 
 impl Snapshot {
@@ -258,35 +285,7 @@ $pCpuUsage = $null
 $pCpuFreq = $null
 
 function Get-OhmSensors {
-  $sensors = Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue
-
-  if (-not $sensors) {
-    $exeCandidates = @(
-      (if ($env:WINMON_STABLE_DIR) { Join-Path $env:WINMON_STABLE_DIR 'third_party\ohm\OpenHardwareMonitor_x64.exe' } else { $null }),
-      (if ($env:WINMON_STABLE_DIR) { Join-Path $env:WINMON_STABLE_DIR 'third_party\ohm\OpenHardwareMonitor.exe' } else { $null }),
-      (if ($env:WINMON_EXE_DIR) { Join-Path $env:WINMON_EXE_DIR 'third_party\ohm\OpenHardwareMonitor_x64.exe' } else { $null }),
-      (if ($env:WINMON_EXE_DIR) { Join-Path $env:WINMON_EXE_DIR 'third_party\ohm\OpenHardwareMonitor.exe' } else { $null }),
-      (if ($env:WINMON_EXE_DIR) { Join-Path $env:WINMON_EXE_DIR 'OpenHardwareMonitor_x64.exe' } else { $null }),
-      (if ($env:WINMON_EXE_DIR) { Join-Path $env:WINMON_EXE_DIR 'OpenHardwareMonitor.exe' } else { $null }),
-      (Join-Path (Get-Location) 'third_party\ohm\OpenHardwareMonitor_x64.exe'),
-      (Join-Path (Get-Location) 'third_party\ohm\OpenHardwareMonitor.exe'),
-      'C:\Program Files\OpenHardwareMonitor\OpenHardwareMonitor_x64.exe',
-      'C:\Program Files\OpenHardwareMonitor\OpenHardwareMonitor.exe'
-    ) | Where-Object { $_ -and (Test-Path $_) }
-
-    $exe = $exeCandidates | Select-Object -First 1
-    if ($exe) {
-      $running = Get-Process OpenHardwareMonitor* -ErrorAction SilentlyContinue | Select-Object -First 1
-      if (-not $running) {
-        Start-Process -FilePath $exe -WindowStyle Hidden
-        Start-Sleep -Milliseconds 1500
-      }
-
-      $sensors = Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue
-    }
-  }
-
-  return $sensors
+  Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue
 }
 
 function Get-OhmCpuTemp {
@@ -415,6 +414,17 @@ if ($smi) {
 "#;
 
 #[cfg(windows)]
+const OHM_STATE_SCRIPT: &str = r#"
+$sensors = Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue
+$running = @(Get-Process OpenHardwareMonitor* -ErrorAction SilentlyContinue).Count -gt 0
+
+[pscustomobject]@{
+  ready = [bool]$sensors
+  running = [bool]$running
+} | ConvertTo-Json -Compress
+"#;
+
+#[cfg(windows)]
 const SLOW_SCRIPT: &str = r#"
 $swapUsedBytes = 0
 $cpuPower = $null
@@ -470,6 +480,8 @@ pub struct Sampler {
     ram_total_bytes: u64,
     swap_total_bytes: u64,
     slow_cache: Arc<RwLock<SlowCache>>,
+    #[cfg(windows)]
+    ohm_guard: Option<OhmGuard>,
 }
 
 impl Sampler {
@@ -490,20 +502,22 @@ impl Sampler {
             ram_total_bytes: memory.ram_total_bytes,
             swap_total_bytes: memory.swap_total_bytes,
             slow_cache,
+            #[cfg(windows)]
+            ohm_guard: ensure_ohm_running().unwrap_or_default(),
         })
     }
 
     pub fn get_metrics(&mut self) -> WithError<Metrics> {
         #[cfg(windows)]
         {
-            let mut envs = Vec::new();
-            if let Some(dir) = winmon_stable_dir() {
-                envs.push(("WINMON_STABLE_DIR", dir.to_string_lossy().into_owned()));
+            let envs = winmon_runtime_envs();
+            let mut fast: FastSnapshot = run_powershell_json_with_env(FAST_SCRIPT, &envs)?;
+            if fast_snapshot_needs_ohm(&fast) {
+                if self.ohm_guard.is_none() {
+                    self.ohm_guard = ensure_ohm_running().unwrap_or_default();
+                }
+                fast = run_powershell_json_with_env(FAST_SCRIPT, &envs)?;
             }
-            if let Some(dir) = current_exe_dir() {
-                envs.push(("WINMON_EXE_DIR", dir.to_string_lossy().into_owned()));
-            }
-            let fast: FastSnapshot = run_powershell_json_with_env(FAST_SCRIPT, &envs)?;
             let ram_used_bytes = load_ram_used_bytes()?;
             let slow = *self.slow_cache.read().unwrap();
             let sample = Snapshot {
@@ -595,6 +609,111 @@ fn current_exe_path() -> Option<std::path::PathBuf> {
 #[cfg(windows)]
 fn current_exe_dir() -> Option<std::path::PathBuf> {
     current_exe_path().and_then(|path| path.parent().map(|dir| dir.to_path_buf()))
+}
+
+#[cfg(windows)]
+fn winmon_runtime_envs() -> Vec<(&'static str, String)> {
+    let mut envs = Vec::new();
+    if let Some(dir) = winmon_stable_dir() {
+        envs.push(("WINMON_STABLE_DIR", dir.to_string_lossy().into_owned()));
+    }
+    if let Some(dir) = current_exe_dir() {
+        envs.push(("WINMON_EXE_DIR", dir.to_string_lossy().into_owned()));
+    }
+    envs
+}
+
+#[cfg(windows)]
+fn fast_snapshot_needs_ohm(fast: &FastSnapshot) -> bool {
+    fast.cpu_temp_c.is_none()
+        && fast.cpu_freq_mhz == 0
+        && fast.e_cpu_freq_mhz.is_none()
+        && fast.p_cpu_freq_mhz.is_none()
+}
+
+#[cfg(windows)]
+fn ensure_ohm_running() -> WithError<Option<OhmGuard>> {
+    let envs = winmon_runtime_envs();
+    let state = load_ohm_state(&envs).unwrap_or_default();
+    if state.ready {
+        return Ok(None);
+    }
+
+    if state.running {
+        wait_for_ohm_ready(&envs, Duration::from_secs(3));
+        return Ok(None);
+    }
+
+    let Some(ohm_exe) = find_ohm_exe_path() else {
+        return Ok(None);
+    };
+
+    let mut command = Command::new(&ohm_exe);
+    if let Some(parent) = ohm_exe.parent() {
+        command.current_dir(parent);
+    }
+    command.creation_flags(CREATE_NO_WINDOW);
+    let child = command.spawn()?;
+    wait_for_ohm_ready(&envs, Duration::from_secs(3));
+    Ok(Some(OhmGuard { child }))
+}
+
+#[cfg(windows)]
+fn find_ohm_exe_path() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Some(dir) = winmon_stable_dir() {
+        candidates.push(
+            dir.join("third_party")
+                .join("ohm")
+                .join("OpenHardwareMonitor_x64.exe"),
+        );
+        candidates.push(
+            dir.join("third_party")
+                .join("ohm")
+                .join("OpenHardwareMonitor.exe"),
+        );
+    }
+
+    if let Some(dir) = current_exe_dir() {
+        candidates.push(
+            dir.join("third_party")
+                .join("ohm")
+                .join("OpenHardwareMonitor_x64.exe"),
+        );
+        candidates.push(
+            dir.join("third_party")
+                .join("ohm")
+                .join("OpenHardwareMonitor.exe"),
+        );
+        candidates.push(dir.join("OpenHardwareMonitor_x64.exe"));
+        candidates.push(dir.join("OpenHardwareMonitor.exe"));
+    }
+
+    candidates.push(
+        Path::new("C:\\Program Files\\OpenHardwareMonitor").join("OpenHardwareMonitor_x64.exe"),
+    );
+    candidates.push(
+        Path::new("C:\\Program Files\\OpenHardwareMonitor").join("OpenHardwareMonitor.exe"),
+    );
+
+    candidates.into_iter().find(|path| path.exists())
+}
+
+#[cfg(windows)]
+fn load_ohm_state(envs: &[(&str, String)]) -> WithError<OhmState> {
+    run_powershell_json_with_env(OHM_STATE_SCRIPT, envs)
+}
+
+#[cfg(windows)]
+fn wait_for_ohm_ready(envs: &[(&str, String)], timeout: Duration) {
+    let started = std::time::Instant::now();
+    while started.elapsed() < timeout {
+        if load_ohm_state(envs).map(|state| state.ready).unwrap_or(false) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
 }
 
 #[cfg(windows)]

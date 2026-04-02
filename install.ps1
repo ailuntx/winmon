@@ -1,14 +1,10 @@
 param(
-  [string]$Repo = "__REPOSITORY__",
+  [string]$Repo = "ailuntz/winmon",
   [switch]$KeepTemp,
   [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
-
-if ($Repo -eq "__REPOSITORY__") {
-  throw "repo not configured. pass -Repo owner/name or use the release asset version."
-}
 
 $baseUrl = "https://github.com/$Repo/releases/latest/download"
 $zipUrl = "$baseUrl/winmon-windows-x64.zip"
