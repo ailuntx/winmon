@@ -632,9 +632,20 @@ fn fast_snapshot_needs_ohm(fast: &FastSnapshot) -> bool {
 }
 
 #[cfg(windows)]
+fn ohm_debug(message: impl AsRef<str>) {
+    if std::env::var_os("WINMON_DEBUG_OHM").is_some() {
+        eprintln!("[winmon][ohm] {}", message.as_ref());
+    }
+}
+
+#[cfg(windows)]
 fn ensure_ohm_running() -> WithError<Option<OhmGuard>> {
     let envs = winmon_runtime_envs();
     let state = load_ohm_state(&envs).unwrap_or_default();
+    ohm_debug(format!(
+        "state ready={} running={}",
+        state.ready, state.running
+    ));
     if state.ready {
         return Ok(None);
     }
@@ -645,16 +656,29 @@ fn ensure_ohm_running() -> WithError<Option<OhmGuard>> {
     }
 
     let Some(ohm_exe) = find_ohm_exe_path() else {
+        ohm_debug("ohm exe not found");
         return Ok(None);
     };
+    ohm_debug(format!("start {}", ohm_exe.display()));
 
     let mut command = Command::new(&ohm_exe);
     if let Some(parent) = ohm_exe.parent() {
         command.current_dir(parent);
     }
     command.creation_flags(CREATE_NO_WINDOW);
-    let child = command.spawn()?;
+    let child = match command.spawn() {
+        Ok(child) => child,
+        Err(err) => {
+            ohm_debug(format!("spawn failed: {err}"));
+            return Err(err.into());
+        }
+    };
     wait_for_ohm_ready(&envs, Duration::from_secs(3));
+    let state = load_ohm_state(&envs).unwrap_or_default();
+    ohm_debug(format!(
+        "after start ready={} running={}",
+        state.ready, state.running
+    ));
     Ok(Some(OhmGuard { child }))
 }
 
