@@ -20,7 +20,7 @@ on:
       - scripts/**
       - winget/**
       - third_party/licenses/**
-      - third_party/ohm/OpenHardwareMonitor_x64.exe
+      - third_party/ohm/OpenHardwareMonitorLib.dll
 
 jobs:
   check:

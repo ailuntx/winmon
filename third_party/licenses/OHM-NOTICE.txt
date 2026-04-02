@@ -1,13 +1,12 @@
-OpenHardwareMonitor_x64.exe in this package comes from:
-https://github.com/HardwareMonitor/openhardwaremonitor/releases
+OpenHardwareMonitorLib.dll in this package comes from:
+https://www.nuget.org/packages/OpenHardwareMonitorLib/1.0.9513
 
 Upstream repository:
 https://github.com/HardwareMonitor/openhardwaremonitor
 
-winmon does not modify this executable.
+winmon does not modify this library.
 
 Upstream README notes:
 - some sensors may require administrator privileges
-- antivirus false positives are possible on some systems
 
-See GPL-3.0.txt in the same directory for the bundled license text.
+See MPL-2.0.txt in the same directory for the bundled license text.

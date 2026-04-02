@@ -35,7 +35,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/a
 ## 说明
 
 - 颜色、视图模式、刷新间隔保存在 `%APPDATA%\winmon\config.json`
-- CPU 温度依赖 `OpenHardwareMonitor`
+- CPU 温度和 P/E CPU 传感器依赖内嵌的 `OpenHardwareMonitorLib.dll`
 - 某些机器上的部分传感器可能需要管理员权限
 - 当前发布包使用静态 CRT，不额外依赖 VC++ 运行库
 

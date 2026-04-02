@@ -19,7 +19,7 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1 pipe -s 1 --device-info
 release 包由 `scripts/package.ps1` 生成：
 
 ```powershell
-.\scripts\package.ps1 -Version v0.1.0 -TargetDir target
+.\scripts\package.ps1 -Version v0.1.1 -TargetDir target
 ```
 
 当前包里只放：
@@ -35,7 +35,7 @@ release 包由 `scripts/package.ps1` 生成：
 程序启动时会先做一轮自举：
 
 - 把当前 `winmon.exe` 同步到 `%APPDATA%\winmon\winmon.exe`
-- 把内嵌的 `OpenHardwareMonitor_x64.exe` 写到 `%APPDATA%\winmon\third_party\ohm`
+- 把内嵌的 `OpenHardwareMonitorLib.dll` 写到 `%APPDATA%\winmon\third_party\ohm`
 - 把 `%APPDATA%\winmon` 写进用户 `PATH`
 
 安装脚本和发布流程都依赖这条链，所以不要随便绕开。

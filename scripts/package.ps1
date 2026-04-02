@@ -11,7 +11,7 @@ $releaseDir = Join-Path $root $TargetDir
 $releaseDir = Join-Path $releaseDir "release"
 $exe = Join-Path $releaseDir "winmon.exe"
 $ohmNotice = Join-Path $root "third_party\licenses\OHM-NOTICE.txt"
-$gplText = Join-Path $root "third_party\licenses\GPL-3.0.txt"
+$mplText = Join-Path $root "third_party\licenses\MPL-2.0.txt"
 $macmonNotice = Join-Path $root "third_party\licenses\MACMON-NOTICE.txt"
 $macmonLicense = Join-Path $root "third_party\licenses\MACMON-MIT.txt"
 $bundleName = "winmon-$Version-windows-x64"
@@ -27,8 +27,8 @@ if (!(Test-Path $ohmNotice)) {
   throw "OHM notice not found: $ohmNotice"
 }
 
-if (!(Test-Path $gplText)) {
-  throw "GPL text not found: $gplText"
+if (!(Test-Path $mplText)) {
+  throw "MPL text not found: $mplText"
 }
 
 if (!(Test-Path $macmonNotice)) {
@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Force (Join-Path $stageDir "third_party\licenses")
 
 Copy-Item $exe (Join-Path $stageDir "winmon.exe")
 Copy-Item $ohmNotice (Join-Path $stageDir "third_party\licenses\OHM-NOTICE.txt")
-Copy-Item $gplText (Join-Path $stageDir "third_party\licenses\GPL-3.0.txt")
+Copy-Item $mplText (Join-Path $stageDir "third_party\licenses\MPL-2.0.txt")
 Copy-Item $macmonNotice (Join-Path $stageDir "third_party\licenses\MACMON-NOTICE.txt")
 Copy-Item $macmonLicense (Join-Path $stageDir "third_party\licenses\MACMON-MIT.txt")
 
@@ -66,10 +66,9 @@ Run:
 - new terminals can run winmon directly from PATH
 
 Notes:
-- CPU temperature depends on the embedded OHM runtime extracted to %APPDATA%\winmon\third_party\ohm
+- CPU temperature and P/E CPU sensors depend on the embedded OpenHardwareMonitorLib.dll extracted to %APPDATA%\winmon\third_party\ohm
 - some sensors may require administrator privileges on some machines
-- upstream OHM repo warns antivirus false positives are possible
-- upstream OHM repo: https://github.com/HardwareMonitor/openhardwaremonitor
+- upstream OHM package: https://www.nuget.org/packages/OpenHardwareMonitorLib/
 - winmon.exe is built with static CRT, no separate VC++ redistributable is required
 "@ | Set-Content (Join-Path $stageDir "README.txt") -Encoding ASCII
 
