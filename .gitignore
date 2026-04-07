@@ -3,3 +3,5 @@
 /dist/
 /target/
 /target_verify*/
+.DS_Store
+.gitignore
