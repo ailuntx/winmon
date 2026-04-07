@@ -5,9 +5,9 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$InstallerSha256,
 
-  [string]$Repo = "ailuntz/winmon",
-  [string]$PackageIdentifier = "Ailuntz.Winmon",
-  [string]$Publisher = "ailuntz",
+  [string]$Repo = "ailuntx/winmon",
+  [string]$PackageIdentifier = "Ailuntx.Winmon",
+  [string]$Publisher = "ailuntx",
   [string]$PackageName = "winmon",
   [string]$Moniker = "winmon",
   [string]$ManifestVersion = "1.12.0",

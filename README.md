@@ -29,14 +29,14 @@ winmon
 
 ```powershell
 $p = Join-Path $env:TEMP "winmon-install.ps1"
-iwr "https://github.com/ailuntz/winmon/releases/latest/download/install.ps1" -UseBasicParsing -OutFile $p
+iwr "https://github.com/ailuntx/winmon/releases/latest/download/install.ps1" -UseBasicParsing -OutFile $p
 powershell -NoProfile -ExecutionPolicy Bypass -File $p
 ```
 
 如果当前是在 `cmd` 里，或者是从 macOS 用 `ssh win` 连进去，直接用这两条：
 
 ```cmd
-curl.exe -L --fail --silent --show-error "https://github.com/ailuntz/winmon/releases/latest/download/install.ps1" -o "%TEMP%\winmon-install.ps1"
+curl.exe -L --fail --silent --show-error "https://github.com/ailuntx/winmon/releases/latest/download/install.ps1" -o "%TEMP%\winmon-install.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\winmon-install.ps1"
 ```
 
@@ -77,7 +77,7 @@ docker compose up -d
 ## 说明
 
 - 颜色、视图模式、刷新间隔保存在 `%APPDATA%\winmon\config.json`
-- CPU 温度和 P/E CPU 传感器依赖内嵌的 `OpenHardwareMonitorLib.dll`
+- CPU 温度和 P/E CPU 传感器依赖内嵌的 `OpenHardwareMonitorLib.dll` 及其运行时依赖
 - 某些机器上的部分传感器可能需要管理员权限
 - `sys_power` 当前没有可靠通用来源，长期保持 `N/A`
 - 当前发布包使用静态 CRT，不额外依赖 VC++ 运行库

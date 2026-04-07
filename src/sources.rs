@@ -12,7 +12,28 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 #[cfg(windows)]
-const EMBEDDED_OHM_DLL: &[u8] = include_bytes!("../third_party/ohm/OpenHardwareMonitorLib.dll");
+const EMBEDDED_OHM_DLLS: &[(&str, &[u8])] = &[
+    (
+        "OpenHardwareMonitorLib.dll",
+        include_bytes!("../third_party/ohm/OpenHardwareMonitorLib.dll"),
+    ),
+    (
+        "RAMSPDToolkit-NDD.dll",
+        include_bytes!("../third_party/ohm/RAMSPDToolkit-NDD.dll"),
+    ),
+    (
+        "BlackSharp.Core.dll",
+        include_bytes!("../third_party/ohm/BlackSharp.Core.dll"),
+    ),
+    (
+        "SergiyE.Common.dll",
+        include_bytes!("../third_party/ohm/SergiyE.Common.dll"),
+    ),
+    (
+        "HidSharp.dll",
+        include_bytes!("../third_party/ohm/HidSharp.dll"),
+    ),
+];
 
 pub type WithError<T> = Result<T, Box<dyn Error>>;
 
@@ -582,11 +603,10 @@ fn bootstrap_runtime_assets_windows() -> WithError<()> {
         }
     }
 
-    let stable_ohm = stable_dir
-        .join("third_party")
-        .join("ohm")
-        .join("OpenHardwareMonitorLib.dll");
-    write_embedded_file_if_needed(EMBEDDED_OHM_DLL, &stable_ohm)?;
+    let stable_ohm_dir = stable_dir.join("third_party").join("ohm");
+    for (name, bytes) in EMBEDDED_OHM_DLLS {
+        write_embedded_file_if_needed(bytes, &stable_ohm_dir.join(name))?;
+    }
 
     if std::env::var_os("WINMON_SKIP_USER_PATH").is_none() {
         ensure_user_path_contains(&stable_dir)?;

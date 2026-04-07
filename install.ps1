@@ -1,5 +1,5 @@
 param(
-  [string]$Repo = "ailuntz/winmon",
+  [string]$Repo = "ailuntx/winmon",
   [switch]$KeepTemp,
   [switch]$DryRun
 )

@@ -1,12 +1,15 @@
-OpenHardwareMonitorLib.dll in this package comes from:
+OpenHardwareMonitorLib.dll and its managed runtime dependencies in this package come from:
 https://www.nuget.org/packages/OpenHardwareMonitorLib/1.0.9513
 
 Upstream repository:
 https://github.com/HardwareMonitor/openhardwaremonitor
 
-winmon does not modify this library.
+winmon does not modify these libraries.
 
 Upstream README notes:
 - some sensors may require administrator privileges
 
 See MPL-2.0.txt in the same directory for the bundled license text.
+Additional bundled dependency licenses:
+- SergiyE.Common.dll: GPL-3.0-only, see GPL-3.0.txt
+- HidSharp.dll: see HIDSHARP-LICENSE.txt

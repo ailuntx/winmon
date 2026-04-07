@@ -13,6 +13,8 @@ $exe = Join-Path $releaseDir "winmon.exe"
 $repoLicense = Join-Path $root "LICENSE"
 $ohmNotice = Join-Path $root "third_party\licenses\OHM-NOTICE.txt"
 $mplText = Join-Path $root "third_party\licenses\MPL-2.0.txt"
+$gplText = Join-Path $root "third_party\licenses\GPL-3.0.txt"
+$hidSharpLicense = Join-Path $root "third_party\licenses\HIDSHARP-LICENSE.txt"
 $macmonNotice = Join-Path $root "third_party\licenses\MACMON-NOTICE.txt"
 $macmonLicense = Join-Path $root "third_party\licenses\MACMON-MIT.txt"
 $bundleName = "winmon-$Version-windows-x64"
@@ -36,6 +38,14 @@ if (!(Test-Path $mplText)) {
   throw "MPL text not found: $mplText"
 }
 
+if (!(Test-Path $gplText)) {
+  throw "GPL text not found: $gplText"
+}
+
+if (!(Test-Path $hidSharpLicense)) {
+  throw "HidSharp license not found: $hidSharpLicense"
+}
+
 if (!(Test-Path $macmonNotice)) {
   throw "macmon notice not found: $macmonNotice"
 }
@@ -54,6 +64,8 @@ Copy-Item $exe (Join-Path $stageDir "winmon.exe")
 Copy-Item $repoLicense (Join-Path $stageDir "LICENSE")
 Copy-Item $ohmNotice (Join-Path $stageDir "third_party\licenses\OHM-NOTICE.txt")
 Copy-Item $mplText (Join-Path $stageDir "third_party\licenses\MPL-2.0.txt")
+Copy-Item $gplText (Join-Path $stageDir "third_party\licenses\GPL-3.0.txt")
+Copy-Item $hidSharpLicense (Join-Path $stageDir "third_party\licenses\HIDSHARP-LICENSE.txt")
 Copy-Item $macmonNotice (Join-Path $stageDir "third_party\licenses\MACMON-NOTICE.txt")
 Copy-Item $macmonLicense (Join-Path $stageDir "third_party\licenses\MACMON-MIT.txt")
 
@@ -72,7 +84,7 @@ Run:
 - new terminals can run winmon directly from PATH
 
 Notes:
-- CPU temperature and P/E CPU sensors depend on the embedded OpenHardwareMonitorLib.dll extracted to %APPDATA%\winmon\third_party\ohm
+- CPU temperature and P/E CPU sensors depend on embedded OpenHardwareMonitorLib.dll and its managed runtime dependencies extracted to %APPDATA%\winmon\third_party\ohm
 - some sensors may require administrator privileges on some machines
 - upstream OHM package: https://www.nuget.org/packages/OpenHardwareMonitorLib/
 - winmon.exe is built with static CRT, no separate VC++ redistributable is required
