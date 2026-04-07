@@ -7,7 +7,7 @@
 - NVIDIA 独显
 
 相关项目：
-[Releases](https://github.com/ailuntx/winmon/releases) · [install.ps1](https://github.com/ailuntx/winmon/releases/latest/download/install.ps1) · [mac 版](https://github.com/vladkens/macmon) · linux 版本（GitHub 预留）
+[mac 版](https://github.com/vladkens/macmon) · linux 版本（GitHub 预留）
 
 ![winmon TUI](./assets/winmon-tui.png)
 
